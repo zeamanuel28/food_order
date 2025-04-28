@@ -27,7 +27,9 @@ Route::middleware('auth:sanctum')->group(function () {
 //Route::middleware('auth:sanctum')->put('/orders/{order}/status', [OrderController::class, 'updateStatus']);
 Route::put('/orders/{order}/status', [OrderController::class, 'updateStatus']);
 // POST route for creating new orders
-Route::post('/orders', [OrderController::class, 'store']); 
+//Route::post('/orders', [OrderController::class, 'store']); 
+Route::middleware('auth:sanctum')->post('/orders', [OrderController::class, 'store']);
+
 //Route::put('/orders/{id}/status', [OrderController::class, 'update']);
 Route::middleware(['auth:sanctum'])->put('/orders/{id}/status', [OrderController::class, 'update']);
 
