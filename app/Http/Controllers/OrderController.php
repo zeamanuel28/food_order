@@ -88,50 +88,60 @@ class OrderController extends Controller
      * Update the specified order in storage.
      */
     public function updateStatus(Request $request, $id)
-    {
-        $request->validate([
-            'status' => 'required|string|in:pending,assigned,completed,canceled',
-        ]);
-    
-        $order = Order::findOrFail($id);
-    
-        $order->status = $request->status;
-        $order->save();
-    
-        return response()->json([
-            'message' => 'Order status updated successfully.',
-            'order' => $order
-        ]);
+{
+    // Validate the status
+    $request->validate([
+        'status' => 'required|string|in:pending,assigned,completed,canceled',
+    ]);
+
+    // Find the order by ID
+    $order = Order::find($id);
+
+    // If order is not found, return a 404 error
+    if (!$order) {
+        return response()->json(['error' => 'Order not found'], 404);
     }
+
+    $order->status = $request->status;
+
+    // Save the updated order to the database
+    $order->save();
+
+    // Return a success response with the updated order details
+    return response()->json([
+        'message' => 'Order status updated successfully.',
+        'order' => $order  // This will include the updated order data
+    ]);
+}
 
     /**
      * Assign a delivery person to the order.
      */
-    public function assignDeliveryPerson(Request $request, Order $order)
-    {
-        // Ensure the user making the request is an admin
-        if (auth()->user()->role !== 'admin') {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
+    public function assignDeliveryPerson(Request $request, $orderId)
+{
+    // Find the order by the provided orderId
+    $order = Order::find($orderId);
 
-        // Validate that the delivery person exists and has the correct role
-        $request->validate([
-            'delivery_person_id' => 'required|exists:users,id',
-        ]);
-
-        $deliveryPerson = User::find($request->delivery_person_id);
-
-        if ($deliveryPerson->role !== 'delivery') {
-            return response()->json(['error' => 'The selected user is not a delivery person'], 400);
-        }
-
-        // Assign the delivery person to the order
-        $order->delivery_person_id = $request->delivery_person_id;
-        $order->status = 'assigned';  // Update the order status
-        $order->save();
-
-        return response()->json($order, 200);
+    // If the order doesn't exist, return a 404 response
+    if (!$order) {
+        return response()->json(['message' => 'Order not found'], 404);
     }
+
+    // Now, we assume that the request contains the delivery_person_id
+    // Make sure delivery_person_id is valid, e.g., user exists with that role
+    $deliveryPerson = User::find($request->delivery_person_id);
+
+    // Ensure the user is a delivery person
+    if (!$deliveryPerson || $deliveryPerson->role !== 'delivery') {
+        return response()->json(['message' => 'Invalid delivery person'], 404);
+    }
+
+    // Assign the delivery person to the order
+    $order->delivery_person_id = $request->delivery_person_id;
+    $order->save();
+
+    return response()->json(['message' => 'Delivery person assigned successfully']);
+}
 
     /**
      * Remove the specified order from storage.
