@@ -9,147 +9,161 @@ use Illuminate\Http\Request;
 class OrderController extends Controller
 {
     /**
-     * Display a listing of the orders.
+     * @OA\Get(
+     *     path="/api/orders",
+     *     summary="Fetch all orders",
+     *     tags={"Orders"},
+     *     @OA\Response(response=200, description="List of orders")
+     * )
      */
     public function index()
     {
-        // Get all orders from the database with related restaurant and user information
         $orders = Order::with('restaurant:id,name,email', 'user:id,name,email')
             ->get(['id', 'user_id', 'restaurant_id', 'delivery_address', 'total_price', 'status', 'created_at', 'updated_at']);
-        
-        // Return orders as JSON response
         return response()->json($orders);
     }
 
     /**
-     * This function returns the Blade view with orders data.
+     * @OA\Get(
+     *     path="/api/orders/{id}",
+     *     summary="Show details of a specific order",
+     *     tags={"Orders"},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *     @OA\Response(response=200, description="Order details")
+     * )
      */
-    public function indexView()
+    public function show(string $id)
     {
-        try {
-            // Get all orders with related restaurant and user data
-            $orders = Order::with('restaurant:id,name,email', 'user:id,name,email')
-                ->get(['id', 'user_id', 'restaurant_id', 'delivery_address', 'total_price', 'status', 'created_at', 'updated_at']);
-            
-            // Return the 'orders' Blade view with the orders data
-            return view('orders', compact('orders'));
-        } catch (\Exception $e) {
-            // Log the error for debugging (you can uncomment this in production)
-            // Log::error('Error fetching orders: ' . $e->getMessage());
-            return response()->view('errors.500', [], 500);  // Custom 500 page in case of error
-        }
+        $order = Order::with('restaurant:id,name,email', 'user:id,name,email')
+            ->findOrFail($id);
+        return response()->json($order);
     }
 
     /**
-     * Store a newly created order in storage.
+     * @OA\Post(
+     *     path="/api/orders",
+     *     summary="Create a new order",
+     *     tags={"Orders"},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"restaurant_id", "delivery_address", "total_price"},
+     *             @OA\Property(property="restaurant_id", type="integer"),
+     *             @OA\Property(property="delivery_address", type="string"),
+     *             @OA\Property(property="total_price", type="number", format="float")
+     *         )
+     *     ),
+     *     @OA\Response(response=201, description="Order created")
+     * )
      */
     public function store(Request $request)
     {
-        // Validate the incoming request data
         $request->validate([
             'restaurant_id' => 'required|exists:restaurants,id',
             'delivery_address' => 'required|string',
             'total_price' => 'required|numeric|min:0',
         ]);
 
-        // Ensure the user is authenticated before creating the order
         if (!auth()->check()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        // Create the order
         $order = Order::create([
-            'user_id' => auth()->id(),  // Use the authenticated user's ID
+            'user_id' => auth()->id(),
             'restaurant_id' => $request->restaurant_id,
             'delivery_address' => $request->delivery_address,
             'total_price' => $request->total_price,
-            'status' => 'pending'  // Default status
+            'status' => 'pending'
         ]);
 
-        // Return a JSON response with the created order
-        return response()->json($order, 201);  // HTTP 201 created
+        return response()->json($order, 201);
     }
 
     /**
-     * Display the specified order.
-     */
-    public function show(string $id)
-    {
-        // Retrieve the order by ID with related restaurant and user data
-        $order = Order::with('restaurant:id,name,email', 'user:id,name,email')
-            ->findOrFail($id); // Use findOrFail to return 404 if not found
-
-        return response()->json($order);
-    }
-
-
-
-    /**
-     * Update the specified order in storage.
+     * @OA\Put(
+     *     path="/api/orders/{id}/status",
+     *     summary="Update order status",
+     *     tags={"Orders"},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"status"},
+     *             @OA\Property(property="status", type="string", enum={"pending", "assigned", "completed", "canceled"})
+     *         )
+     *     ),
+     *     @OA\Response(response=200, description="Order status updated")
+     * )
      */
     public function updateStatus(Request $request, $id)
-{
-    // Validate the status
-    $request->validate([
-        'status' => 'required|string|in:pending,assigned,completed,canceled',
-    ]);
+    {
+        $request->validate([
+            'status' => 'required|string|in:pending,assigned,completed,canceled',
+        ]);
 
-    // Find the order by ID
-    $order = Order::find($id);
+        $order = Order::find($id);
 
-    // If order is not found, return a 404 error
-    if (!$order) {
-        return response()->json(['error' => 'Order not found'], 404);
+        if (!$order) {
+            return response()->json(['error' => 'Order not found'], 404);
+        }
+
+        $order->status = $request->status;
+        $order->save();
+
+        return response()->json([
+            'message' => 'Order status updated successfully.',
+            'order' => $order
+        ]);
     }
 
-    $order->status = $request->status;
-
-    // Save the updated order to the database
-    $order->save();
-
-    // Return a success response with the updated order details
-    return response()->json([
-        'message' => 'Order status updated successfully.',
-        'order' => $order  // This will include the updated order data
-    ]);
-}
-
     /**
-     * Assign a delivery person to the order.
+     * @OA\Put(
+     *     path="/api/orders/{order}/assign-delivery",
+     *     summary="Assign a delivery person to an order",
+     *     tags={"Orders"},
+     *     @OA\Parameter(name="order", in="path", required=true, @OA\Schema(type="integer")),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"delivery_person_id"},
+     *             @OA\Property(property="delivery_person_id", type="integer")
+     *         )
+     *     ),
+     *     @OA\Response(response=200, description="Delivery person assigned successfully")
+     * )
      */
     public function assignDeliveryPerson(Request $request, $orderId)
-{
-    // Find the order by the provided orderId
-    $order = Order::find($orderId);
+    {
+        $order = Order::find($orderId);
 
-    // If the order doesn't exist, return a 404 response
-    if (!$order) {
-        return response()->json(['message' => 'Order not found'], 404);
+        if (!$order) {
+            return response()->json(['message' => 'Order not found'], 404);
+        }
+
+        $deliveryPerson = User::find($request->delivery_person_id);
+
+        if (!$deliveryPerson || $deliveryPerson->role !== 'delivery') {
+            return response()->json(['message' => 'Invalid delivery person'], 404);
+        }
+
+        $order->delivery_person_id = $request->delivery_person_id;
+        $order->save();
+
+        return response()->json(['message' => 'Delivery person assigned successfully']);
     }
-
-    // Now, we assume that the request contains the delivery_person_id
-    // Make sure delivery_person_id is valid, e.g., user exists with that role
-    $deliveryPerson = User::find($request->delivery_person_id);
-
-    // Ensure the user is a delivery person
-    if (!$deliveryPerson || $deliveryPerson->role !== 'delivery') {
-        return response()->json(['message' => 'Invalid delivery person'], 404);
-    }
-
-    // Assign the delivery person to the order
-    $order->delivery_person_id = $request->delivery_person_id;
-    $order->save();
-
-    return response()->json(['message' => 'Delivery person assigned successfully']);
-}
 
     /**
-     * Remove the specified order from storage.
+     * @OA\Delete(
+     *     path="/api/orders/{id}",
+     *     summary="Delete an order",
+     *     tags={"Orders"},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *     @OA\Response(response=204, description="Order deleted")
+     * )
      */
     public function destroy(string $id)
     {
-        // Find the order and delete it
-        $order = Order::findOrFail($id);  // Throws 404 if order not found
+        $order = Order::findOrFail($id);
         $order->delete();
 
         return response()->json(['message' => 'Order deleted successfully']);

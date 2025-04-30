@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\Restaurant;
@@ -7,7 +6,14 @@ use Illuminate\Http\Request;
 
 class RestaurantController extends Controller
 {
-    // GET /api/restaurants
+    /**
+     * @OA\Get(
+     *     path="/api/restaurants",
+     *     summary="Fetch all restaurants",
+     *     tags={"Restaurants"},
+     *     @OA\Response(response=200, description="List of restaurants")
+     * )
+     */
     public function index()
     {
         // Get all restaurants from the database
@@ -25,18 +31,45 @@ class RestaurantController extends Controller
             return view('restaurants', compact('restaurants'));
         } catch (\Exception $e) {
             // Log the error to the Laravel log file
-           // Log::error('Error fetching restaurants: ' . $e->getMessage());
+            // Log::error('Error fetching restaurants: ' . $e->getMessage());
             return response()->view('errors.500', [], 500);  // Custom 500 page
         }
     }
 
-    // API: GET /api/restaurants
+    /**
+     * @OA\Get(
+     *     path="/api/restaurants-alt",
+     *     summary="Alternative endpoint to fetch restaurants (API access)",
+     *     tags={"Restaurants"},
+     *     @OA\Response(response=200, description="List of restaurants")
+     * )
+     */
     public function apiRestaurants()
     {
         return response()->json(Restaurant::all());
     }
 
-    // POST /api/restaurants
+    /**
+     * @OA\Post(
+     *     path="/api/restaurants",
+     *     summary="Create a new restaurant",
+     *     tags={"Restaurants"},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"name", "email"},
+     *             @OA\Property(property="name", type="string"),
+     *             @OA\Property(property="email", type="string", format="email"),
+     *             @OA\Property(property="address", type="string"),
+     *             @OA\Property(property="contact_number", type="string"),
+     *             @OA\Property(property="description", type="string"),
+     *             @OA\Property(property="location", type="string")
+     *         )
+     *     ),
+     *     @OA\Response(response=201, description="Restaurant created"),
+     *     @OA\Response(response=403, description="Only admins can create restaurants")
+     * )
+     */
     public function store(Request $request)
     {
         // Check if the logged-in user is an admin
@@ -71,13 +104,46 @@ class RestaurantController extends Controller
         return response()->json($restaurant, 201);
     }
 
-    // GET /api/restaurants/{id}
-    public function show(Restaurant $restaurant)
+    /**
+     * @OA\Get(
+     *     path="/api/restaurants/{id}",
+     *     summary="Get details of a specific restaurant",
+     *     tags={"Restaurants"},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *     @OA\Response(response=200, description="Restaurant details")
+     * )
+     */
+    public function show($id)
     {
+        $restaurant = Restaurant::find($id);
+    
+        if (!$restaurant) {
+            return response()->json(['error' => 'Restaurant not found'], 404);
+        }
+    
         return response()->json($restaurant);
     }
-
-    // PUT /api/restaurants/{id}
+    /**
+     * @OA\Put(
+     *     path="/api/restaurants/{id}",
+     *     summary="Update a restaurant",
+     *     tags={"Restaurants"},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             @OA\Property(property="name", type="string"),
+     *             @OA\Property(property="email", type="string", format="email"),
+     *             @OA\Property(property="address", type="string"),
+     *             @OA\Property(property="contact_number", type="string"),
+     *             @OA\Property(property="description", type="string"),
+     *             @OA\Property(property="location", type="string")
+     *         )
+     *     ),
+     *     @OA\Response(response=200, description="Restaurant updated"),
+     *     @OA\Response(response=403, description="Unauthorized to update restaurant")
+     * )
+     */
     public function update(Request $request, string $id)
     {
         // Find the restaurant by its ID
@@ -107,7 +173,16 @@ class RestaurantController extends Controller
         return response()->json($restaurant, 200);
     }
 
-    // DELETE /api/restaurants/{id}
+    /**
+     * @OA\Delete(
+     *     path="/api/restaurants/{id}",
+     *     summary="Delete a restaurant",
+     *     tags={"Restaurants"},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *     @OA\Response(response=204, description="Restaurant deleted"),
+     *     @OA\Response(response=403, description="Unauthorized to delete restaurant")
+     * )
+     */
     public function destroy(Restaurant $restaurant)
     {
         // Check if the current user is the admin of this restaurant
